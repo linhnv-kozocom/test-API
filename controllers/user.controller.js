@@ -22,6 +22,6 @@ const createUser = async (req, res) => {
   }
 };
 
-const getUserInfoByID = async (res, req) => {};
+const getUserInfoByID = async (req, res) => {};
 
 export { getAllUser, createUser, getUserInfoByID };
