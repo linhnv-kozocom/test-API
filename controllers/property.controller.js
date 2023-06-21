@@ -29,17 +29,15 @@ const getAllProperties = async (req, res) => {
     query.propertyType = propertyType;
   }
 
-  if (title_like) {
-    query.title = { $regex: title_like, $option: "i" };
-  }
-
   try {
     const count = await Property.countDocuments({ query });
 
-    const properties = await Property.find(query)
+    const properties = await Property.find({
+      title: { $regex: ".*" + title_like + ".*" },
+    })
       .limit(_end)
       .skip(_start)
-      .sort({ [_sort]: _order });
+      .sort({ price: "desc" });
 
     res.header("x-total-count", count);
     res.header("Access-Control-Expose-Headers", "x-total-count");
@@ -89,9 +87,56 @@ const createProperty = async (req, res) => {
   }
 };
 
-const updateProperty = async (req, res) => {};
+const updateProperty = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, description, propertyType, location, price, photo } =
+      req.body;
 
-const deleteProperty = async (req, res) => {};
+    const photoURL = await cloudinary.uploader.upload(photo);
+
+    await Property.findByIdAndUpdate(
+      { _id: id },
+      {
+        title,
+        description,
+        propertyType,
+        location,
+        price,
+        photo: photoURL.url || photo,
+      }
+    );
+
+    res.status(200).json({ message: "Property updated successfully" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const deleteProperty = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const propertyToDelete = await Property.findById({ _id: id }).populate(
+      "creator"
+    );
+
+    if (!propertyToDelete) throw new Error("Property not found");
+
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    propertyToDelete.remove({ session });
+    propertyToDelete.creator.allProperties.pull(propertyToDelete);
+
+    await propertyToDelete.creator.save({ session });
+    await session.commitTransaction();
+
+    res.status(200).json({ message: "Property deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
 
 export {
   getAllProperties,
